@@ -186,7 +186,6 @@ The app runs at `http://localhost:5002`.
 ## 📘 Course Reference
 
 - **Course:** Microsoft Azure From Zero to Hero – The Complete Guide (Udemy)
-- **Instructor:** Memi Lavi
 - **Notes:** [docs/AZURE-COURSE-NOTES.md](docs/AZURE-COURSE-NOTES.md)
 
 This repository contains my own practice work while following the course.

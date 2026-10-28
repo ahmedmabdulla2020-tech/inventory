@@ -1,6 +1,6 @@
 # ☁️ Microsoft Azure From Zero to Hero – Course Notes
 
-My study notes for **Microsoft Azure From Zero to Hero – The Complete Guide** (Udemy, by Memi Lavi).
+My study notes for **Microsoft Azure From Zero to Hero – The Complete Guide** (Udemy).
 The course teaches Azure by building **Readit**, a fictional online bookstore, from several Azure services. This repository contains the **Inventory** part of that system.
 
 ---
