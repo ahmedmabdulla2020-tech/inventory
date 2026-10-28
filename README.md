@@ -115,7 +115,7 @@ VALUES ('The Pragmatic Programmer', 352, 'Andrew Hunt', '', 39.99, 10),
 1. Clone the repository:
 
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/ahmedmabdulla2020-tech/inventory.git
    cd inventory
    ```
 
