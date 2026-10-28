@@ -1,9 +1,11 @@
-# 📚 Inventory – Azure App Service + Azure SQL Demo
+# 📚 Readit Inventory – Azure App Service, Azure SQL & Microsoft Entra ID
 
-A small **ASP.NET Core Razor Pages** web app for managing a bookstore's inventory, built and deployed to **Microsoft Azure** as part of the course
+An **ASP.NET Core Razor Pages** web app that manages the book inventory of **Readit**, the fictional online bookstore used as the case study in the course
 **[Microsoft Azure From Zero to Hero – The Complete Guide](https://www.udemy.com/course/microsoft-azure-from-zero-to-hero-the-complete-guide/)**.
 
-The app lists books stored in an **Azure SQL Database** and lets you update the quantity in stock for each book. Its main purpose is to practice hosting a web app on **Azure App Service** and connecting it securely to a managed database.
+The app lists the books stored in an **Azure SQL Database** and lets employees update the quantity in stock. It runs on **Azure App Service**, signs users in with **Microsoft Entra ID (Azure AD)**, and connects to the database using a **Managed Identity**, so there are no database passwords in the code or configuration.
+
+> 📝 For my notes on the whole course, see **[docs/AZURE-COURSE-NOTES.md](docs/AZURE-COURSE-NOTES.md)**.
 
 ---
 
@@ -14,83 +16,92 @@ The app lists books stored in an **Azure SQL Database** and lets you update the 
 - [Architecture](#-architecture)
 - [Project Structure](#-project-structure)
 - [Data Model](#-data-model)
-- [Running Locally](#-running-locally)
+- [Configuration](#-configuration)
+- [Building & Running Locally](#-building--running-locally)
 - [Deploying to Azure](#-deploying-to-azure)
-- [Azure Concepts Practiced](#-azure-concepts-practiced)
-- [Lessons Learned](#-lessons-learned)
 - [Course Reference](#-course-reference)
 
 ---
 
 ## ✨ Features
 
-- Displays all books (name, author, pages, price) from the database.
-- Update the **In Stock** quantity for any book with a single click.
-- Connection string read from configuration, so it can be supplied by **Azure App Service settings** instead of being hard-coded.
-- Friendly error message on the page if the database can't be reached.
+- Lists all books (name, author, pages, price) from Azure SQL.
+- Update the **In Stock** quantity of any book.
+- Sign-in with **Microsoft Entra ID** (`Microsoft.Identity.Web`); the header shows the signed-in user's name or *Anonymous User*.
+- **Passwordless database access** with `Authentication=Active Directory Managed Identity`.
+- Shows the database error on the page if the connection fails.
 
 ## 🛠 Tech Stack
 
-| Layer          | Technology                                   |
-| -------------- | -------------------------------------------- |
-| Framework      | ASP.NET Core 3.1 (Razor Pages)               |
-| Language       | C#                                           |
-| ORM            | Entity Framework Core 3.1 (SQL Server)       |
-| Database       | Azure SQL Database                           |
-| Hosting        | Azure App Service (Web App)                  |
-| Front end      | Bootstrap, jQuery                            |
+| Layer          | Technology                                         |
+| -------------- | -------------------------------------------------- |
+| Framework      | ASP.NET Core on **.NET 10** (Razor Pages)          |
+| Language       | C#                                                 |
+| ORM            | Entity Framework Core 10 (SQL Server provider)     |
+| Database       | Azure SQL Database                                 |
+| Hosting        | Azure App Service (Web App)                        |
+| Authentication | Microsoft Entra ID via `Microsoft.Identity.Web`    |
+| DB auth        | System-assigned Managed Identity (`Azure.Identity`)|
+| Front end      | Bootstrap, jQuery                                  |
 
 ## 🏗 Architecture
 
 ```text
-             ┌──────────────┐
-  Browser ──▶│ Azure App    │   EF Core / TCP 1433   ┌────────────────────┐
-             │ Service      │ ─────────────────────▶ │ Azure SQL Database │
-             │ (inventory)  │                        │  (Books table)     │
-             └──────────────┘                        └────────────────────┘
-                    ▲
-                    │  Connection string "BooksDB"
-                    │  (App Service → Configuration → Connection strings)
+                     ① Sign in (OpenID Connect)
+            ┌──────────────────────────────────────┐
+            ▼                                      │
+   ┌─────────────────┐                    ┌────────┴────────┐
+   │ Microsoft Entra │                    │    Browser      │
+   │ ID (Azure AD)   │                    └────────┬────────┘
+   └─────────────────┘                             │ ② HTTPS
+                                                   ▼
+                                         ┌───────────────────┐
+                                         │ Azure App Service │
+                                         │  (inventory app)  │
+                                         │  Managed Identity │
+                                         └─────────┬─────────┘
+                                                   │ ③ EF Core, token-based auth
+                                                   ▼
+                                         ┌───────────────────┐
+                                         │ Azure SQL Database│
+                                         │ readit-db / Books │
+                                         └───────────────────┘
 ```
 
-1. The user opens the web app hosted on **Azure App Service**.
-2. `IndexModel` uses `BookContext` (EF Core) to query the `Books` table.
-3. When the user clicks **Save**, the new quantity is written back to **Azure SQL Database**.
+1. The user signs in through **Microsoft Entra ID**.
+2. The request reaches the app on **Azure App Service**.
+3. `IndexModel` queries the `Books` table through `BookContext` (EF Core). The app authenticates to Azure SQL with its **Managed Identity**, so no password is stored anywhere.
 
 ## 📂 Project Structure
 
 ```text
 inventory/
-├── Data/
-│   └── BookContext.cs        # EF Core DbContext (Books DbSet)
-├── Models/
-│   └── Book.cs               # Book entity
+├── Data/BookContext.cs          # EF Core DbContext (Books DbSet)
+├── Models/Book.cs               # Book entity
 ├── Pages/
-│   ├── Index.cshtml          # Inventory table UI
-│   ├── Index.cshtml.cs       # Page logic: load books / save stock
-│   └── Shared/_Layout.cshtml # Site layout
-├── wwwroot/                  # Static files (CSS, JS, images, libs)
-├── Program.cs                # App entry point
-├── Startup.cs                # Services (Razor Pages, DbContext) & pipeline
-├── appsettings.json          # Config – contains the "BooksDB" placeholder
-└── inventory.csproj
+│   ├── Index.cshtml(.cs)        # Inventory table + save stock handler
+│   └── Shared/_Layout.cshtml    # Layout, shows signed-in user
+├── wwwroot/                     # Static files (CSS, JS, images, libs)
+├── docs/AZURE-COURSE-NOTES.md   # Course notes
+├── Program.cs                   # Entry point
+├── Startup.cs                   # Razor Pages, Entra ID auth, DbContext
+├── appsettings.json             # Connection string + AzureAd section
+└── inventory.csproj             # net10.0
 ```
 
 ## 🗃 Data Model
 
 `Models/Book.cs` maps to the `Books` table:
 
-| Column    | Type            | Description            |
-| --------- | --------------- | ---------------------- |
-| ID        | int (PK)        | Book identifier        |
-| Name      | nvarchar        | Book title             |
-| Pages     | int             | Number of pages        |
-| Author    | nvarchar        | Author name            |
-| ImageUrl  | nvarchar        | Cover image URL        |
-| Price     | float           | Price                  |
-| InStock   | int             | Quantity in stock      |
-
-Example SQL to create and seed the table:
+| Column   | Type     | Description       |
+| -------- | -------- | ----------------- |
+| ID       | int (PK) | Book identifier   |
+| Name     | nvarchar | Book title        |
+| Pages    | int      | Number of pages   |
+| Author   | nvarchar | Author name       |
+| ImageUrl | nvarchar | Cover image URL   |
+| Price    | float    | Price             |
+| InStock  | int      | Quantity in stock |
 
 ```sql
 CREATE TABLE Books (
@@ -108,100 +119,73 @@ VALUES ('The Pragmatic Programmer', 352, 'Andrew Hunt', '', 39.99, 10),
        ('Clean Code', 464, 'Robert C. Martin', '', 34.50, 5);
 ```
 
-## 💻 Running Locally
+## ⚙️ Configuration
 
-**Prerequisites:** [.NET Core 3.1 SDK](https://dotnet.microsoft.com/download/dotnet/3.1) (or newer SDK able to build `netcoreapp3.1`) and access to a SQL Server / Azure SQL database.
+`appsettings.json`:
 
-1. Clone the repository:
+```json
+"ConnectionStrings": {
+  "BooksDB": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;Authentication=Active Directory Managed Identity;"
+},
+"AzureAd": {
+  "Instance": "https://login.microsoftonline.com/",
+  "Domain": "your-domain.onmicrosoft.com",
+  "TenantId": "your-tenant-id",
+  "ClientId": "your-client-id",
+  "CallbackPath": "/signin-oidc"
+}
+```
 
-   ```bash
-   git clone https://github.com/ahmedmabdulla2020-tech/inventory.git
-   cd inventory
-   ```
+| Setting               | Where it comes from                                                  |
+| --------------------- | -------------------------------------------------------------------- |
+| `BooksDB`             | Azure SQL server & database names. No password is needed.            |
+| `AzureAd:TenantId`    | Entra ID → **Overview** → Directory (tenant) ID                      |
+| `AzureAd:ClientId`    | Entra ID → **App registrations** → your app → Application (client) ID |
+| `AzureAd:Domain`      | Entra ID → **Overview** → Primary domain                             |
 
-2. Set the connection string. **Don't commit real credentials** – use user secrets instead:
+> In App Service you can override any of these with **Environment variables**, for example `AzureAd__ClientId`.
 
-   ```bash
-   dotnet user-secrets init
-   dotnet user-secrets set "ConnectionStrings:BooksDB" "Server=tcp:<server>.database.windows.net,1433;Database=<db>;User ID=<user>;Password=<password>;Encrypt=True;"
-   ```
+## 💻 Building & Running Locally
 
-3. In `Pages/Index.cshtml.cs`, uncomment the block marked `UNCOMMENT AFTER SETTING THE CONNECTION STRING` so the page loads books from the database.
+**Prerequisites:** [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
-4. Run the app:
+```bash
+git clone https://github.com/ahmedmabdulla2020-tech/inventory.git
+cd inventory
+dotnet build inventory.csproj
+dotnet run --project inventory.csproj
+```
 
-   ```bash
-   dotnet run
-   ```
+The app runs at `http://localhost:5002`.
 
-   Then open `http://localhost:5002`.
+> **Note:** `Active Directory Managed Identity` only works inside Azure. Locally, use `Authentication=Active Directory Default` in the connection string (it uses your `az login` / Visual Studio account). Also add your client IP to the SQL Server firewall.
 
 ## ☁️ Deploying to Azure
 
-### 1. Create the Azure SQL Database
+1. **Azure SQL Database**: create the server and database, run the SQL script above, and set a **Microsoft Entra admin** on the server.
+2. **App Service**: create a Web App with runtime **.NET 10**.
+3. **Managed Identity**: Web App → **Identity** → System assigned → **On**.
+4. **Grant the identity access to the database** (run as the Entra admin):
 
-1. In the Azure Portal, create a **SQL Database** (and a new logical **SQL Server**).
-2. Under the server's **Networking**, allow **Azure services and resources to access this server**, and add your client IP if you want to connect from your machine.
-3. Run the SQL script above (using the Portal **Query editor**, Azure Data Studio, or SSMS).
-4. Copy the **ADO.NET connection string** from the database's **Connection strings** blade.
+   ```sql
+   CREATE USER [<web-app-name>] FROM EXTERNAL PROVIDER;
+   ALTER ROLE db_datareader ADD MEMBER [<web-app-name>];
+   ALTER ROLE db_datawriter ADD MEMBER [<web-app-name>];
+   ```
 
-### 2. Create the App Service
+5. **Networking**: on the SQL server, allow **Azure services and resources to access this server**.
+6. **App registration**: in Entra ID, register the app and add the redirect URI `https://<web-app-name>.azurewebsites.net/signin-oidc`. Put the tenant ID and client ID in the configuration.
+7. **Publish** the app:
 
-1. Create a **Web App** with runtime stack **.NET Core 3.1** (or a newer .NET version if you upgrade the project).
-2. Choose an **App Service Plan** (Free F1 / Basic B1 are enough for learning).
+   ```bash
+   dotnet publish inventory.csproj -c Release -o ./publish
+   ```
 
-### 3. Configure the connection string
-
-In the Web App → **Configuration** (or **Environment variables**) → **Connection strings**, add:
-
-| Name      | Value                          | Type      |
-| --------- | ------------------------------ | --------- |
-| `BooksDB` | *your ADO.NET connection string* | SQLAzure  |
-
-App Service injects it at runtime, overriding the placeholder in `appsettings.json`.
-
-### 4. Publish the app
-
-Using the .NET CLI:
-
-```bash
-dotnet publish -c Release -o ./publish
-```
-
-Then deploy the `publish` folder using one of:
-
-- **Visual Studio** → right-click the project → **Publish** → Azure App Service.
-- **VS Code** with the **Azure App Service** extension → *Deploy to Web App*.
-- **Azure CLI**:
-
-  ```bash
-  az webapp deploy --resource-group <rg> --name <app-name> --src-path publish.zip --type zip
-  ```
-
-Browse to `https://<app-name>.azurewebsites.net` to see the inventory page.
-
-## 🎓 Azure Concepts Practiced
-
-- **Resource Groups** – organizing related resources and deleting them together.
-- **Azure App Service** – PaaS hosting for web apps, App Service Plans, scaling up/out.
-- **Azure SQL Database** – managed relational database, server firewall rules, DTU/vCore tiers.
-- **Configuration management** – App Service application settings & connection strings instead of secrets in code.
-- **Deployment** – publishing from Visual Studio / VS Code / CLI.
-- **Cost awareness** – choosing low tiers for learning and cleaning up resources afterwards.
-
-## 💡 Lessons Learned
-
-- Keep secrets out of source control; App Service **Connection strings** override `appsettings.json` values with the same name.
-- The SQL Server firewall blocks everything by default – remember to allow Azure services and your client IP.
-- Always **delete the resource group** when you finish experimenting to avoid unexpected charges.
+   Deploy the `publish` folder from Visual Studio, from the VS Code Azure extension, or with `az webapp deploy`.
 
 ## 📘 Course Reference
 
 - **Course:** Microsoft Azure From Zero to Hero – The Complete Guide (Udemy)
-- **Instructor:** Memi Lavi
+- **Notes:** [docs/AZURE-COURSE-NOTES.md](docs/AZURE-COURSE-NOTES.md)
 
 This repository contains my own practice work while following the course.
-
----
-
-⭐ If you find this helpful, feel free to star the repo!
