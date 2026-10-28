@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,13 +8,27 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" />
 </head>
+
 <body>
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container">
-                <img width="100" src="~/images/logo.jpg"/>
+                <img width="100" src="~/images/logo.jpg" />
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                 <H4>Inventory</H4>
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <ul class="nav navbar-nav navbar-right">
+                        <li><a asp-area="" asp-controller="Session" asp-action="EditProfile">Hello @User.Claims.First(c=>c.Type=="name").Value!</a>
+                        </li>                        
+                    </ul>
+                }
+                else
+                {
+                    <ul class="nav navbar-nav navbar-right">
+                        <li>Anonymous User</li>
+                    </ul>
+                }
             </div>
         </nav>
     </header>
@@ -35,4 +50,5 @@
 
     @RenderSection("Scripts", required: false)
 </body>
+
 </html>

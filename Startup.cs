@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using inventory.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,6 +6,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Identity.Web;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace inventory
 {
@@ -27,8 +28,16 @@ namespace inventory
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddRazorPages();
-            services.AddDbContext<BookContext>(options => options.UseSqlServer(Configuration.GetConnectionString("BooksDB")));
             
+            services.AddMicrosoftIdentityWebAppAuthentication(Configuration, "AzureAd");
+
+           // SqlAuthenticationProvider.SetProvider(SqlAuthenticationMethod.ActiveDirectoryInteractive, new SqlAppAuthenticationProvider());
+          //  services.AddDbContext<BookContext>(options => options.UseSqlServer(Configuration.GetConnectionString("BooksDB")));
+
+            services.AddDbContext<BookContext>(options =>
+            {
+                options.UseSqlServer(Configuration.GetConnectionString("BooksDB"));
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -43,7 +52,8 @@ namespace inventory
             app.UseStaticFiles();
 
             app.UseRouting();
-
+            
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
